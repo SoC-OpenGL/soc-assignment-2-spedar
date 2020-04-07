@@ -8,7 +8,7 @@
 To run the code, on Ubuntu, having GLEW, GLFW :
 
  - Type **make** in terminal.
- - Run ./<filename>
+ - Run ./&ltfilename&gt
  - Each directory has sub directories for shaders.
 
 <br>
