@@ -1,3 +1,9 @@
+//#+#+#+#+#+#+#+#+#+#+#+#++#+#+#+#+#+#+#+#+#+
+    // - WASD for camera position
+    // - Mouse for view direction, scroll for zoom
+    // - Page UP, DOWN for camera moment in upward direction
+    // - Right, Left arrow key for Roll ( kind of).
+//#+#+#+#+#+#+#+#+#+#+#+#++#+#+#+#+#+#+#+#+#+
 
 #include "camera.hpp"
 #include<iostream>
@@ -10,7 +16,7 @@ void processInput(GLFWwindow *window);
 
 GLuint shaderProgram;
 GLuint vbo, vao;
-unsigned int texture;
+GLuint texture;
 
 GLuint proMatrix, viewMatrix;
 
@@ -19,7 +25,7 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 800;
 
 // camera
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 5.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
 
@@ -55,19 +61,19 @@ float vertices[] = {
     -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
     -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
 
-    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+    -0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
 
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
      0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
      0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
 
     -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
      0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
@@ -88,7 +94,7 @@ float vertices[] = {
 
 //---------------------------------------------------
 void initBuffersGL(void)  {
-
+  
   // Load shaders and use the resulting shader program
   std::string vertex_shader_file("shaders/vshader.glsl");
   std::string fragment_shader_file("shaders/fshader.glsl");
@@ -135,19 +141,20 @@ void initBuffersGL(void)  {
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
    int width, height, nrChannels;
-
-   unsigned char *data = stbi_load("t1.jpg", &width, &height, &nrChannels, 0);
+   stbi_set_flip_vertically_on_load(true); // tell stb_image.h to flip loaded texture's on the y-axis.
+   unsigned char *data = stbi_load("escher.jpg", &width, &height, &nrChannels, 0);
    if (data)
    {
        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
        glGenerateMipmap(GL_TEXTURE_2D);
-       cerr <<" fuck ";
    }
    else
    {
        std::cout << "Failed to load texture" << std::endl;
    }
    stbi_image_free(data);
+   // glUseProgram(shaderProgram);
+   // glUniform1i(glGetUniformLocation(shaderProgram, "ourTexture"), 0 ) ;
 }
 //----------------------------------------------------------------------------
 void renderGL(void)
@@ -155,14 +162,17 @@ void renderGL(void)
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glUseProgram(shaderProgram);
 
+  glBindTexture(GL_TEXTURE_2D, texture);
   // pass projection matrix to shader (note that in this case it could change every frame)
   glm::mat4 projection = glm::perspective(glm::radians(fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-  glUniformMatrix4fv(proMatrix, 1, GL_FALSE, glm::value_ptr(projection));
+  glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "proMatrix"), 1, GL_FALSE, glm::value_ptr(projection));
+
+  glm:: mat4 model = glm:: mat4(1.0f);
 
   // camera/view transformation
   glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-  glUniformMatrix4fv(viewMatrix, 1, GL_FALSE, glm::value_ptr(view));
-  glBindTexture(GL_TEXTURE_2D, texture);
+  glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(view));
+
 
   // Draw cube
   glBindVertexArray (vao);
@@ -181,7 +191,6 @@ int main(int argc, char** argv)  {
       //! Initialize GLFW
       if (!glfwInit())
         return -1;
-
       //We want OpenGL 4.0
       glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4); 
       glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
@@ -226,7 +235,7 @@ int main(int argc, char** argv)  {
       //Initialize GL state
       opengl::initGL();
       initBuffersGL();
-  
+
       // Loop until the user closes the window
       while (glfwWindowShouldClose(window) == 0)  {
         float currentFrame = glfwGetTime();
@@ -301,10 +310,13 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window)
 {
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
     float cameraSpeed = 2.5 * deltaTime;
+    float cameraSpeed2 = 1.5 * deltaTime;
+
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         cameraPos += cameraSpeed * cameraFront;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -313,6 +325,16 @@ void processInput(GLFWwindow *window)
         cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS)
+        cameraPos += cameraUp * cameraSpeed ;
+    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS)
+        cameraPos -= cameraUp * cameraSpeed ;
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) ==GLFW_PRESS ){
+        cameraUp = glm::normalize(cameraUp - glm::cross(cameraFront, cameraUp) * cameraSpeed2  );
+    }    
+    if (glfwGetKey(window, GLFW_KEY_LEFT) ==GLFW_PRESS ){
+        cameraUp = glm::normalize(cameraUp + glm::cross(cameraFront, cameraUp) * cameraSpeed2  );
+    }
 }
 //-------------------------------------------------------------------------
 

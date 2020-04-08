@@ -1,6 +1,7 @@
 #include "gl_framework.hpp"
 
-
+extern float yaw, pitch, lastX, lastY, fov, deltaTime, lastFrame;
+extern bool firstMouse;
 namespace opengl
 {
   //! Initialize GL State

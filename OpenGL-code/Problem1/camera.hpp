@@ -15,7 +15,8 @@
 #include "../glm/gtc/matrix_transform.hpp"
 #include "../glm/gtc/type_ptr.hpp"
 
-
+bool solid=true;
+bool enable_culling=true;
 
 //-------------------------------------------------------------------------
 
