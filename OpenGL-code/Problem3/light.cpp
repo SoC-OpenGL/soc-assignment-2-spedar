@@ -3,97 +3,54 @@
     // - Mouse for view direction, scroll for zoom
     // - Page UP, DOWN for camera moment in upward direction
     // - Right, Left arrow key for Roll ( kind of).
+    // - 'M' to switch from Blinn Phong to Phong
+    // - 'L' to switch lighting mode from directional --> spotlight --> pointlight
 //#+#+#+#+#+#+#+#+#+#+#+#++#+#+#+#+#+#+#+#+#+
 
-#include "skybox.hpp"
+#include "light.hpp"
 #include<iostream>
 using namespace std ;
 #include "../stb_image.h"
 #include <vector>
+#include "camera.hpp"
 
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+void cursor_callback(GLFWwindow* window, double x, double y);
+void scroll_callback(GLFWwindow* w, double x, double y);
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 void processInput(GLFWwindow *window);
 unsigned int loadTexture( const char* path) ;
 unsigned int loadCubemap(vector<std::string> faces);
 
+//! The pointer to the GLFW window
+GLFWwindow* window;
 
-
-GLuint shaderProgram, shader_sky;
-GLuint vbo, vao, vao_sky, vbo_sky;
-unsigned int texture, cubemapTexture ;
+GLuint shaderProgram, shader_sky, shader_light;
+GLuint vbo, vao, vao_sky, vbo_sky, vao_light;
+unsigned int cubemapTexture ;
 GLuint proMatrix, viewMatrix;
 
 // settings
 const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 800;
+int blinPhong = 1;
+int lighttype = 1; // 0 = directional light, 1 = point light, 2 = spotlight
+int movelight = 0 ;
+glm::vec3 lightPos = glm::vec3(5.0f, 0.0f, 0.0f);
+glm::vec3 scale = glm::vec3(0.3,0.3,0.3);
+float movlt = -0.5 ;
 
-// camera
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 5.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
 
-
-bool firstMouse = true;
-float yaw   = -90.0f; // yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right so we initially rotate a bit to the left.
-float pitch =  0.0f;
-float lastX =  800.0f / 2.0;
-float lastY =  800.0 / 2.0;
-float fov   =  45.0f;
+glm::vec3 Camera_Pos = glm::vec3 (0.0, 0.0, 8.0);
+glm::vec3 Camera_Up = glm::vec3 (0.0, 1.0, 0.0) ; 
 
 //-----------------------------------------------------------------
-// timing
-float deltaTime = 0.0f; // time between current frame and last frame
-float lastFrame = 0.0f;
+Camera camera(Camera_Pos, Camera_Up) ;
+float currentFrame ;
 //--------------------------------------------------------------
 
 //6 faces, 2 triangles/face, 3 vertices/triangle
 const int num_vertices = 36;
-
-
-float vertices[] = {
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-
-    -0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-    -0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-
-     0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-     0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-};
+GLuint albedo, normal, roughness, ambient, height_map ;
 
 //-------------------------------------------------------------------------------
 
@@ -119,6 +76,15 @@ void initBuffersGL(void)  {
 
   shader_sky = opengl::CreateProgramGL(shaderList_sky);
                       ////////////////////////////////////
+  std::string vertex_shader_li("shaders/vshader_light.glsl");
+  std::string fragment_shader_li("shaders/fshader_light.glsl");
+
+  std::vector<GLuint> shaderList_light;
+  shaderList_light.push_back(opengl::LoadShaderGL(GL_VERTEX_SHADER, vertex_shader_li));
+  shaderList_light.push_back(opengl::LoadShaderGL(GL_FRAGMENT_SHADER, fragment_shader_li));
+
+  shader_light = opengl::CreateProgramGL(shaderList_light);
+                      ////////////////////////////////////
   //Cube 
   glGenVertexArrays (1, &vao);
   glGenBuffers (1, &vbo);
@@ -127,11 +93,20 @@ void initBuffersGL(void)  {
   glBufferData (GL_ARRAY_BUFFER, sizeof (vertices), vertices, GL_STATIC_DRAW);
   // set up vertex array
   glEnableVertexAttribArray( 0 );
-  glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 5* sizeof(float), (void*)0 );
+  glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 8* sizeof(float), (void*)0 );
   
   glEnableVertexAttribArray( 1 );
-  glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 5* sizeof(float), (void*)(3* sizeof(float)) );
+  glVertexAttribPointer( 1, 3, GL_FLOAT, GL_FALSE, 8* sizeof(float), (void*)(3* sizeof(float)) );
 
+  glEnableVertexAttribArray( 2 );
+  glVertexAttribPointer( 2, 2, GL_FLOAT, GL_FALSE, 8* sizeof(float), (void*)(6* sizeof(float)) );
+
+  ////////////////////////////////////////////////////////////////
+  glGenVertexArrays(1, &vao_light) ;
+  glBindVertexArray(vao_light) ;
+  glBindBuffer (GL_ARRAY_BUFFER, vbo) ; // Same vertices (will update position later)
+  glVertexAttribPointer (0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+  glEnableVertexAttribArray(0);
   ////////////////////////////////////////////////////////////////
 
   glGenVertexArrays(1, &vao_sky);
@@ -144,35 +119,43 @@ void initBuffersGL(void)  {
 
   //=====================//====================//========================//=====================
 
-  texture = loadTexture( "escher.jpg");
+  albedo = loadTexture ("texture2/Pebbles_017_baseColor.jpg");
+  normal = loadTexture ("texture2/Pebbles_017_normal.jpg") ;
+  ambient = loadTexture ("texture2/Pebbles_017_ambientOcclusion.jpg") ;
+  roughness = loadTexture ( "texture2/Pebbles_017_roughness.jpg") ;
+  //height_map = loadTexture("texture2/Pebbles_017_height.jpg");
+
   vector<std::string> faces=
          
   {
-      "skybox2/right.jpg",
-      "skybox2/left.jpg",
-      "skybox2/top.jpg",
-      "skybox2/bottom.jpg",
-      "skybox2/front.jpg",
-      "skybox2/back.jpg"
+      "skybox3/right.jpg",
+      "skybox3/left.jpg",
+      "skybox3/top.jpg",
+      "skybox3/bottom.jpg",
+      "skybox3/front.jpg",
+      "skybox3/back.jpg"
   };
          
-          /*
-  {
-      "skybox/Ely35_px.jpg",
-      "skybox/Ely35_nx.jpg",
-      "skybox/Ely35_py.jpg",
-      "skybox/Ely35_ny.jpg",
-      "skybox/Ely35_pz.jpg",
-      "skybox/Ely35_nz.jpg"
-  };
-          */
+ 
   cubemapTexture = loadCubemap(faces);
+  
+   glUseProgram(shaderProgram) ;
+  glUniform1i (glGetUniformLocation(shaderProgram, "material.ALBEDO"), 0);
 
-  glUseProgram(shaderProgram);
-  glUniform1i( glGetUniformLocation(shaderProgram, "texture"), 0 ) ;
+  glUniform1i (glGetUniformLocation(shaderProgram, "material.NORMAL"), 1);
+
+  glUniform1i (glGetUniformLocation(shaderProgram, "material.AMBIENT"), 2);
+
+  glUniform1i (glGetUniformLocation(shaderProgram, "material.ROUGHNESS"), 3);
+
+  glUniform1i (glGetUniformLocation(shaderProgram, "material.HT"), 4) ;
+  //glUniform1i (glGetUniformLocation(shaderProgram, "texture"),0) ;
+
+
 
   glUseProgram( shader_sky) ;
   glUniform1i( glGetUniformLocation(shader_sky, "skybox"), 0);
+
 
 }
 
@@ -182,35 +165,88 @@ void initBuffersGL(void)  {
 
 void renderGL(void)
 {
+      glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+      glm::vec3 lightDirection(-1.0f, 0.0f, 0.0f);
+
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glUseProgram(shaderProgram);
 
   // pass projection matrix to shader (note that in this case it could change every frame)
-  glm::mat4 projection = glm::perspective(glm::radians(fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+  glm::mat4 projection = glm::perspective(glm::radians(camera.fov), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "proMatrix"), 1, GL_FALSE, glm::value_ptr(projection));
 
   glm:: mat4 model = glm:: mat4(1.0f);
-
+  glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model)) ;
   // camera/view transformation
-  glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+  glm::mat4 view = glm::lookAt(camera.cameraPos, camera.cameraPos + camera.cameraFront, camera.cameraUp);
   glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(view));
 
+  //normal matrix
+  glm:: mat4 normalmatrix = glm::transpose(glm::inverse(model)); //used if plain texture?
+  glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "normalmatrix"), 1, GL_FALSE, glm::value_ptr(normalmatrix)) ;
+  glUniform3fv(glGetUniformLocation(shaderProgram, "viewLoc"),1, glm::value_ptr( camera.cameraPos));
+  glUniform3fv(glGetUniformLocation(shaderProgram, "camfront"),1, glm::value_ptr( camera.cameraFront));
+
+  glUniform3f(glGetUniformLocation(shaderProgram, "globalAmbient"), 0.1f, 0.1f, 0.1f) ;
+  glUniform3f(glGetUniformLocation(shaderProgram, "light.diffuse"), 0.5f, 0.5f, 0.5f) ;
+  glUniform3f(glGetUniformLocation(shaderProgram, "light.specular"), 1.0f, 1.0f, 1.0f);
+  glUniform3fv(glGetUniformLocation(shaderProgram, "light.position"),1, glm::value_ptr (lightPos));
+  glUniform3fv(glGetUniformLocation(shaderProgram, "light.direction"),1, glm::value_ptr(lightDirection));
+  glUniform1i(glGetUniformLocation(shaderProgram, "light.type"), lighttype);
+  glUniform1f(glGetUniformLocation(shaderProgram, "light.constant"), 1.0f);                     // |
+  glUniform1f(glGetUniformLocation(shaderProgram, "light.linear"), 0.04f);                      //  } For ATTENUATION  
+  glUniform1f(glGetUniformLocation(shaderProgram, "light.quadratic"), 0.012f);                   // |
+  glUniform1f(glGetUniformLocation(shaderProgram, "light.cutoff"), glm::cos(glm::radians(7.5f)));        // FOR SPOTLIGHT
+  glUniform1f(glGetUniformLocation(shaderProgram, "light.outerCutoff"), glm::cos(glm::radians(10.5f)));   //
+  glUniform1i (glGetUniformLocation(shaderProgram, "blinnPhong"), blinPhong);
+ 
+  glUniform3f (glGetUniformLocation(shaderProgram, "material.specular"), 0.5f, 0.5f, 0.5f);  
+  glUniform1f (glGetUniformLocation(shaderProgram, "material.shininess"), 32.0f);
+  
+ 
   // Draw cube
   glBindVertexArray (vao);
-  glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
-  glDrawArrays(GL_TRIANGLES, 0, 36);
-  glBindVertexArray(0);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, albedo );
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, normal);
+  glActiveTexture(GL_TEXTURE2);
+  glBindTexture(GL_TEXTURE_2D, ambient);
+  glActiveTexture(GL_TEXTURE3);
+  glBindTexture(GL_TEXTURE_2D, roughness); 
 
-  glm::mat4 skyMapView = glm::mat4(glm::mat3(view));  
-  //Skybox cube
+  glActiveTexture(GL_TEXTURE4);
+  glBindTexture(GL_TEXTURE_2D, height_map); 
+  //glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
+  glDrawArrays(GL_TRIANGLES, 0, 36);  
+  glBindVertexArray(0) ;
+
+
+  // Draw light source
+  glUseProgram(shader_light);
+  glUniformMatrix4fv(glGetUniformLocation(shader_light, "proMatrix"), 1, GL_FALSE, glm::value_ptr(projection));
+  glUniformMatrix4fv(glGetUniformLocation(shader_light, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(view));  
+  //model = glm::translate(glm::mat4(1.0f), lightPos);
+  model = glm::scale(glm::mat4(1.0f), scale);
+  model = glm::translate(model, lightPos) ;
+
+  glUniformMatrix4fv(glGetUniformLocation(shader_light, "model"), 1, GL_FALSE, glm::value_ptr(model));
+  glUniform3fv(glGetUniformLocation( shader_light, "light"),1, glm::value_ptr (lightColor)) ;
+  glBindVertexArray (vao_light);
+  glDrawArrays(GL_TRIANGLES, 0, 36);
+  glBindVertexArray(0) ;
+
+
+  //Skybox cube prep
+  glm::mat4 skyMapView = glm::mat4(glm::mat3(view));  // VIP ;)
+
   glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
   glUseProgram(shader_sky) ;
   glUniformMatrix4fv(glGetUniformLocation(shader_sky, "proMatrix"), 1, GL_FALSE, glm::value_ptr(projection));
 
   glUniformMatrix4fv(glGetUniformLocation(shader_sky, "viewMatrix"), 1, GL_FALSE, glm::value_ptr(skyMapView));
-
-  glBindVertexArray(vao_sky);
   glBindTexture( GL_TEXTURE_CUBE_MAP, cubemapTexture) ;
+  glBindVertexArray(vao_sky);
   glDrawArrays(GL_TRIANGLES, 0, 36) ;
   glBindVertexArray(0);
   glDepthFunc(GL_LESS); 
@@ -219,8 +255,8 @@ void renderGL(void)
 
 //#################################################################################
 int main(int argc, char** argv)  {
-      //! The pointer to the GLFW window
-      GLFWwindow* window;
+
+
 
       //! Setting up the GLFW Error callback
       glfwSetErrorCallback(opengl::error_callback);
@@ -236,7 +272,7 @@ int main(int argc, char** argv)  {
       //We don't want the old OpenGL 
       glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); 
       //! Create a windowed mode window and its OpenGL context
-      window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "texture cube + camera + skybox", NULL, NULL);
+      window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "texture cube + camera + skybox + lighting", NULL, NULL);
       if (!window)   {
         glfwTerminate();
         return -1;
@@ -260,9 +296,9 @@ int main(int argc, char** argv)  {
       std::cout<<"Version: "<<glGetString (GL_VERSION)<<std::endl;
       std::cout<<"GLSL Version: "<<glGetString (GL_SHADING_LANGUAGE_VERSION)<<std::endl;
 
-      //glfwSetKeyCallback(window, opengl::key_callback);
+      glfwSetKeyCallback(window, key_callback);
       glfwSetFramebufferSizeCallback(window, opengl::framebuffer_size_callback);
-      glfwSetCursorPosCallback(window, mouse_callback);
+      glfwSetCursorPosCallback(window, cursor_callback);
       glfwSetScrollCallback(window, scroll_callback);
 
 
@@ -275,14 +311,16 @@ int main(int argc, char** argv)  {
 
       // Loop until the user closes the window
       while (glfwWindowShouldClose(window) == 0)  {
-        float currentFrame = glfwGetTime();
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;    
+        currentFrame = glfwGetTime();
+        camera.deltaTime = currentFrame - camera.lastFrame;
+        camera.lastFrame = currentFrame;    
 
-        processInput(window);  
+        camera.processInput(window);  
 
         // Render here
         renderGL();
+        //activate textures
+               
         // Swap front and back buffers
         glfwSwapBuffers(window);      
         // Poll for and process events
@@ -294,86 +332,7 @@ int main(int argc, char** argv)  {
 
 //####################################################################################
 
-// glfw: whenever the mouse moves, this callback is called
-// -------------------------------------------------------
-void mouse_callback(GLFWwindow* window, double xpos, double ypos)
-{
-    if (firstMouse)
-    {
-        lastX = xpos;
-        lastY = ypos;
-        firstMouse = false;
-    }
 
-    float xoffset = xpos - lastX;
-    float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
-    lastX = xpos;
-    lastY = ypos;
-
-    float sensitivity = 0.1f; // change this value to your liking
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw += xoffset;
-    pitch += yoffset;
-
-    // make sure that when pitch is out of bounds, screen doesn't get flipped
-    if (pitch > 89.0f)
-        pitch = 89.0f;
-    if (pitch < -89.0f)
-        pitch = -89.0f;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front.y = sin(glm::radians(pitch));
-    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    cameraFront = glm::normalize(front);
-}
-
-
-// glfw: whenever the mouse scroll wheel scrolls, this callback is called
-// ----------------------------------------------------------------------
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{
-    if (fov >= 1.0f && fov <= 45.0f)
-        fov -= yoffset;
-    if (fov <= 1.0f)
-        fov = 1.0f;
-    if (fov >= 45.0f)
-        fov = 45.0f;
-}
-
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow *window)
-{
-
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-
-    float cameraSpeed = 2.5 * deltaTime;
-    float cameraSpeed2 = 1.5 * deltaTime;
-
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraPos += cameraSpeed * cameraFront;
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraPos -= cameraSpeed * cameraFront;
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
-    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS)
-        cameraPos += cameraUp * cameraSpeed ;
-    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS)
-        cameraPos -= cameraUp * cameraSpeed ;
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) ==GLFW_PRESS ){
-        cameraUp = glm::normalize(cameraUp - glm::cross(cameraFront, cameraUp) * cameraSpeed2  );
-    }    
-    if (glfwGetKey(window, GLFW_KEY_LEFT) ==GLFW_PRESS ){
-        cameraUp = glm::normalize(cameraUp + glm::cross(cameraFront, cameraUp) * cameraSpeed2  );
-    }
-
-}
 
 unsigned int loadTexture( const char * path){
    unsigned int texture ;         
@@ -430,5 +389,33 @@ unsigned int loadCubemap( vector<std:: string> faces){
 
    return texture;
 }    
+
+void cursor_callback(GLFWwindow* window, double x, double y){
+    camera.mouse_callback(window, x, y);
+
+}
+
+void scroll_callback(GLFWwindow* w, double x, double y){
+    camera.scroll_callback(window,x,y);
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
+  if (key == GLFW_KEY_M && action==GLFW_PRESS)
+    blinPhong = (blinPhong + 1)%2 ;
+  if (key == GLFW_KEY_L && action==GLFW_PRESS)
+    lighttype = (lighttype + 1)%3 ;
+  if (key == GLFW_KEY_C && action==GLFW_PRESS){
+    movelight = (movelight+1)%2 ;
+    if(movelight==1) movlt = -0.5 ;
+    else movlt = 0.5 ;
+  }
+  if (key ==GLFW_KEY_Y && action==GLFW_PRESS)
+    lightPos.y += movlt ;
+  if (key ==GLFW_KEY_X && action==GLFW_PRESS)
+    lightPos.x += movlt ;
+  if (key ==GLFW_KEY_Z && action==GLFW_PRESS)
+    lightPos.z += movlt ;            
+}
+
 //-------------------------------------------------------------------------
 
