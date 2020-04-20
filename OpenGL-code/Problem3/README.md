@@ -13,13 +13,15 @@ To run the code, on Ubuntu, having GLEW, GLFW :
  - Problem 1 has camera controls as follows: 
     - WASD for camera position
     - Mouse for view direction, scroll for zoom
-    - Page UP, DOWN for camera moment in upward direction
+    - Page UP, Page DOWN for camera moment in upward direction
     - Right, Left arrow key for Roll ( kind of).
  - Problem 3 has following controls:
     - Camera has same controls.
     - for changing blinnphong to phong press 'M'
     - for changing from point to spot to directional, press 'L'
     - You can change light's position in x, y, z directions by pressing X, Y, Z respectively. To go along negative axis press 'C'.
+
+** For Probem 3 please also try texture1 by replacing "texture2" with "texture" in apt place in main file. **
 
 <br>
 <br>
